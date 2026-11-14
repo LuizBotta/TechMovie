@@ -17,6 +17,13 @@ function Confirmacao() {
     );
   }
 
+  const parametros = new URLSearchParams({
+    data: reserva.data,
+    horario: reserva.horario
+  });
+
+  const linkAssentos = `/assentos/${reserva.filmeId}?${parametros.toString()}`;
+
   return (
     <main className="pagina-confirmacao">
       <h1>Resumo dos ingressos</h1>
@@ -62,9 +69,15 @@ function Confirmacao() {
         Esta seleção ainda não representa uma compra concluída.
       </p>
 
-      <Link to="/" className="botao">
-        Voltar ao início
-      </Link>
+      <nav className="acoes-confirmacao">
+        <Link to={linkAssentos} className="botao">
+          Alterar poltronas
+        </Link>
+
+        <Link to="/" className="botao">
+          Voltar ao início
+        </Link>
+      </nav>
     </main>
   );
 }

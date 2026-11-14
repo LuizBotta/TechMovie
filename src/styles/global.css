@@ -113,8 +113,10 @@ a {
   background-color: #e50914;
   color: white;
   padding: 12px 20px;
+  border: none;
   border-radius: 8px;
   margin-top: 15px;
+  cursor: pointer;
 }
 
 .botao:hover {
@@ -413,6 +415,14 @@ a {
   margin-bottom: 20px;
 }
 
+/* Página de confirmação - Botões */
+
+.acoes-confirmacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
 /* Responsividade - Cabeçalho e detalhes */
 
 @media (max-width: 700px) {
@@ -460,4 +470,3 @@ a {
     flex-direction: column;
   }
 }
-
