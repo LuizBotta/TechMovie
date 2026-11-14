@@ -1,6 +1,9 @@
-
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import {
+  useParams,
+  useSearchParams,
+  useNavigate
+} from "react-router-dom";
 import { filmes } from "../data/filmes";
 
 const fileiras = ["A", "B", "C", "D", "E"];
@@ -112,11 +115,21 @@ function Assentos() {
       return;
     }
 
-    const ingressos = selecionados.map((assento) => ({
-      poltrona: assento,
-      tipo: tipos[assento] === "meia" ? "meia" : "inteira",
-      preco: tipos[assento] === "meia" ? 15 : 30
-    }));
+    const ingressos = selecionados.map((assento) => {
+      const preco = tipos[assento] === "meia" ? 15 : 30;
+
+      return {
+        id: `ingresso-${filme.id}-${data}-${horario}-${assento}`,
+        categoria: "ingresso",
+        nome: `Ingresso - ${filme.titulo}`,
+        poltrona: assento,
+        tipo: tipos[assento] || "inteira",
+        quantidade: 1,
+        preco: preco,
+        precoUnitario: preco,
+        subtotal: preco
+      };
+    });
 
     const reserva = {
       filmeId: filme.id,
