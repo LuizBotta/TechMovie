@@ -1,30 +1,75 @@
-import { useState } from "react";
-import {
-  useParams,
-  useSearchParams,
-  useNavigate
-} from "react-router-dom";
+
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { filmes } from "../data/filmes";
+
+const fileiras = ["A", "B", "C", "D", "E"];
+const numeros = [1, 2, 3, 4, 5, 6, 7, 8];
+const ocupados = ["A3", "B5", "C2", "D7", "E4"];
+
+function buscarReserva(id, data, horario) {
+  try {
+    const dados = localStorage.getItem("techmovie_reserva");
+
+    if (!dados) {
+      return null;
+    }
+
+    const reserva = JSON.parse(dados);
+
+    if (
+      Number(reserva.filmeId) === Number(id) &&
+      reserva.data === data &&
+      reserva.horario === horario &&
+      Array.isArray(reserva.ingressos)
+    ) {
+      return reserva;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function Assentos() {
   const { id } = useParams();
   const [parametros] = useSearchParams();
   const navigate = useNavigate();
 
-  const filme = filmes.find(
-    (item) => item.id === Number(id)
-  );
+  const filme = filmes.find((item) => item.id === Number(id));
 
   const data = parametros.get("data");
   const horario = parametros.get("horario");
 
-  const fileiras = ["A", "B", "C", "D", "E"];
-  const numeros = [1, 2, 3, 4, 5, 6, 7, 8];
-
-  const ocupados = ["A3", "B5", "C2", "D7", "E4"];
-
   const [selecionados, setSelecionados] = useState([]);
   const [tipos, setTipos] = useState({});
+
+  useEffect(() => {
+    const reserva = buscarReserva(id, data, horario);
+
+    if (!reserva) {
+      setSelecionados([]);
+      setTipos({});
+      return;
+    }
+
+    const ingressos = reserva.ingressos.filter(
+      (ingresso) => !ocupados.includes(ingresso.poltrona)
+    );
+
+    setSelecionados(
+      ingressos.map((ingresso) => ingresso.poltrona)
+    );
+
+    const tiposSalvos = {};
+
+    ingressos.forEach((ingresso) => {
+      tiposSalvos[ingresso.poltrona] = ingresso.tipo;
+    });
+
+    setTipos(tiposSalvos);
+  }, [id, data, horario]);
 
   function selecionarAssento(assento) {
     if (ocupados.includes(assento)) {
@@ -63,18 +108,13 @@ function Assentos() {
   }, 0);
 
   function confirmarAssentos() {
-    if (
-      selecionados.length === 0 ||
-      !filme ||
-      !data ||
-      !horario
-    ) {
+    if (!filme || !data || !horario || selecionados.length === 0) {
       return;
     }
 
     const ingressos = selecionados.map((assento) => ({
       poltrona: assento,
-      tipo: tipos[assento],
+      tipo: tipos[assento] === "meia" ? "meia" : "inteira",
       preco: tipos[assento] === "meia" ? 15 : 30
     }));
 
