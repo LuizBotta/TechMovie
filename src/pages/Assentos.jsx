@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  useSearchParams,
+  useNavigate
+} from "react-router-dom";
 import { filmes } from "../data/filmes";
 
 function Assentos() {
   const { id } = useParams();
   const [parametros] = useSearchParams();
+  const navigate = useNavigate();
 
   const filme = filmes.find(
     (item) => item.id === Number(id)
@@ -38,6 +43,7 @@ function Assentos() {
       });
     } else {
       setSelecionados([...selecionados, assento]);
+
       setTipos({
         ...tipos,
         [assento]: "inteira"
@@ -55,6 +61,39 @@ function Assentos() {
   const total = selecionados.reduce((soma, assento) => {
     return soma + (tipos[assento] === "meia" ? 15 : 30);
   }, 0);
+
+  function confirmarAssentos() {
+    if (
+      selecionados.length === 0 ||
+      !filme ||
+      !data ||
+      !horario
+    ) {
+      return;
+    }
+
+    const ingressos = selecionados.map((assento) => ({
+      poltrona: assento,
+      tipo: tipos[assento],
+      preco: tipos[assento] === "meia" ? 15 : 30
+    }));
+
+    const reserva = {
+      filmeId: filme.id,
+      filme: filme.titulo,
+      data: data,
+      horario: horario,
+      ingressos: ingressos,
+      total: total
+    };
+
+    localStorage.setItem(
+      "techmovie_reserva",
+      JSON.stringify(reserva)
+    );
+
+    navigate("/confirmacao");
+  }
 
   if (!filme || !data || !horario) {
     return (
@@ -125,23 +164,31 @@ function Assentos() {
               <p>Poltrona {assento}</p>
 
               <select
-                value={tipos[assento]}
+                value={tipos[assento] || "inteira"}
                 onChange={(evento) =>
                   alterarTipo(assento, evento.target.value)
                 }
+                aria-label={`Tipo de ingresso da poltrona ${assento}`}
               >
-                <option value="inteira">Inteira — R$ 30,00</option>
-                <option value="meia">Meia — R$ 15,00</option>
+                <option value="inteira">
+                  Inteira — R$ 30,00
+                </option>
+
+                <option value="meia">
+                  Meia — R$ 15,00
+                </option>
               </select>
             </article>
           ))}
 
-          <h2>Total: R$ {total.toFixed(2).replace(".", ",")}</h2>
+          <h2>
+            Total: R$ {total.toFixed(2).replace(".", ",")}
+          </h2>
 
           <button
             type="button"
             className="botao"
-            onClick={() => alert("Assentos selecionados com sucesso!")}
+            onClick={confirmarAssentos}
           >
             Confirmar assentos
           </button>

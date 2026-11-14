@@ -352,6 +352,67 @@ a {
   margin: 25px 0;
 }
 
+/* Página de confirmação - Estrutura */
+
+.pagina-confirmacao {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.pagina-confirmacao h1 {
+  margin-bottom: 15px;
+}
+
+.pagina-confirmacao > p {
+  margin-bottom: 20px;
+  color: #bbbbbb;
+}
+
+/* Página de confirmação - Resumo */
+
+.confirmacao-card {
+  background-color: #1c1c24;
+  padding: 25px;
+  border-radius: 12px;
+  margin: 25px 0;
+}
+
+.confirmacao-card h2 {
+  margin-bottom: 20px;
+}
+
+.confirmacao-card h3 {
+  margin: 25px 0 15px;
+}
+
+.confirmacao-card > p {
+  margin-bottom: 10px;
+}
+
+/* Página de confirmação - Ingressos */
+
+.confirmacao-ingressos {
+  margin-bottom: 25px;
+}
+
+.confirmacao-ingresso {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px;
+  margin-bottom: 10px;
+  background-color: #292933;
+  border-radius: 8px;
+}
+
+/* Página de confirmação - Aviso */
+
+.aviso-confirmacao {
+  color: #bbbbbb;
+  margin-bottom: 20px;
+}
+
 /* Responsividade - Cabeçalho e detalhes */
 
 @media (max-width: 700px) {
@@ -391,3 +452,12 @@ a {
     align-items: flex-start;
   }
 }
+
+/* Responsividade - Confirmação */
+
+@media (max-width: 600px) {
+  .confirmacao-ingresso {
+    flex-direction: column;
+  }
+}
+
