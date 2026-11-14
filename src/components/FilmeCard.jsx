@@ -5,7 +5,7 @@ function FilmeCard({ filme }) {
     <article className="filme-card">
       <img src={filme.imagem} alt={filme.titulo} />
 
-      <div className="filme-info">
+      <section className="filme-info">
         <h3>{filme.titulo}</h3>
         <p>{filme.genero}</p>
         <p>{filme.duracao}</p>
@@ -13,7 +13,7 @@ function FilmeCard({ filme }) {
         <Link to={`/filme/${filme.id}`} className="botao">
           Ver detalhes
         </Link>
-      </div>
+      </section>
     </article>
   );
 }

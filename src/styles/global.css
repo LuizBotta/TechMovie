@@ -144,3 +144,92 @@ a {
     flex-direction: column;
   }
 }
+
+.pagina-sessoes {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.pagina-sessoes h1 {
+  margin-bottom: 30px;
+}
+
+.pagina-sessoes h2 {
+  margin: 25px 0 15px;
+}
+
+.sessao-filme {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  padding: 20px;
+  background-color: #1c1c24;
+  border-radius: 12px;
+}
+
+.sessao-filme img {
+  width: 120px;
+  height: 170px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.sessao-filme h2 {
+  margin: 0 0 12px;
+}
+
+.sessao-filme p {
+  margin-bottom: 8px;
+  color: #bbbbbb;
+}
+
+.opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.opcao {
+  background-color: #24242e;
+  color: white;
+  border: 2px solid #33333d;
+  border-radius: 8px;
+  padding: 12px 20px;
+  cursor: pointer;
+}
+
+.opcao:hover {
+  border-color: #e50914;
+}
+
+.opcao.selecionada {
+  background-color: #e50914;
+  border-color: #e50914;
+}
+
+.pagina-sessoes .botao {
+  margin-top: 15px;
+}
+
+.pagina-sessoes .botao:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .sessao-filme {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.pagina-sessoes .botao {
+  cursor: pointer;
+}
+
+.pagina-sessoes .botao:disabled {
+  cursor: not-allowed;
+  background-color: #555;
+}

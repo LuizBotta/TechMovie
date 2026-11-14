@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { filmes } from "../data/filmes";
 
+
 function DetalhesFilme() {
   const { id } = useParams();
 
@@ -16,7 +17,7 @@ function DetalhesFilme() {
     <main className="detalhes">
       <img src={filme.imagem} alt={filme.titulo} />
 
-      <div>
+      <section>
         <h1>{filme.titulo}</h1>
         <p>Gênero: {filme.genero}</p>
         <p>Duração: {filme.duracao}</p>
@@ -25,10 +26,14 @@ function DetalhesFilme() {
         <h2>Sinopse</h2>
         <p>{filme.sinopse}</p>
 
+        <Link to={`/sessoes/${filme.id}`} className="botao">
+            Comprar ingresso
+        </Link>
+
         <Link to="/" className="botao">
           Voltar
         </Link>
-      </div>
+      </section>
     </main>
   );
 }
