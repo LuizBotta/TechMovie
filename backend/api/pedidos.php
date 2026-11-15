@@ -22,6 +22,7 @@ try {
                 p.total,
                 p.status,
                 p.data_pedido,
+                i.id AS item_id,
                 i.produto_id,
                 i.nome_produto,
                 i.preco_unitario,
@@ -52,9 +53,11 @@ try {
                 ];
             }
 
-            if ($linha["produto_id"] !== null) {
+            if ($linha["item_id"] !== null) {
                 $pedidos[$id]["produtos"][] = [
-                    "id" => (int) $linha["produto_id"],
+                    "id" => $linha["produto_id"] !== null
+                    ? (int) $linha["produto_id"]
+                    : null,
                     "nome" => $linha["nome_produto"],
                     "preco" => (float) $linha["preco_unitario"],
                     "quantidade" => (int) $linha["quantidade"],
