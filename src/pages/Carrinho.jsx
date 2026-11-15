@@ -1,15 +1,14 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import ItemCarrinho from "../components/ItemCarrinho";
 import "../styles/carrinho.css";
 
 const CHAVE_CARRINHO = "techmovie_carrinho";
+const CHAVE_HISTORICO = "techmovie_historico";
 
-function carregarCarrinho() {
+function lerLocalStorage(chave) {
   try {
-    const dados = JSON.parse(
-      localStorage.getItem(CHAVE_CARRINHO) || "[]"
-    );
-
+    const dados = JSON.parse(localStorage.getItem(chave) || "[]");
     return Array.isArray(dados) ? dados : [];
   } catch {
     return [];
@@ -17,7 +16,11 @@ function carregarCarrinho() {
 }
 
 function Carrinho() {
-  const [carrinho, setCarrinho] = useState(carregarCarrinho);
+  const [carrinho, setCarrinho] = useState(() =>
+    lerLocalStorage(CHAVE_CARRINHO)
+  );
+  const [erro, setErro] = useState("");
+  const navigate = useNavigate();
 
   function atualizarCarrinho(novoCarrinho) {
     setCarrinho(novoCarrinho);
@@ -64,21 +67,74 @@ function Carrinho() {
     atualizarCarrinho([]);
   }
 
+  function finalizarCompra() {
+    setErro("");
+
+    if (carrinho.length === 0) {
+      setErro("Adicione pelo menos um produto antes de finalizar.");
+      return;
+    }
+
+    const total = carrinho.reduce(
+      (soma, produto) =>
+        soma + Number(produto.preco) * Number(produto.quantidade),
+      0
+    );
+
+    const pedido = {
+      id: `PED-${Date.now()}`,
+      data: new Date().toISOString(),
+      produtos: carrinho.map((produto) => ({ ...produto })),
+      total: Number(total.toFixed(2)),
+      status: "Concluído"
+    };
+
+    const historico = lerLocalStorage(CHAVE_HISTORICO);
+
+    try {
+      localStorage.setItem(
+        CHAVE_HISTORICO,
+        JSON.stringify([pedido, ...historico])
+      );
+
+      localStorage.setItem(CHAVE_CARRINHO, "[]");
+
+      window.dispatchEvent(new Event("carrinhoAtualizado"));
+
+      setCarrinho([]);
+      navigate("/historico");
+    } catch {
+      setErro("Não foi possível salvar o pedido. Tente novamente.");
+    }
+  }
+
   const total = carrinho.reduce(
-    (acumulado, produto) =>
-      acumulado + produto.preco * produto.quantidade,
+    (soma, produto) =>
+      soma + Number(produto.preco) * Number(produto.quantidade),
     0
   );
 
   const quantidadeTotal = carrinho.reduce(
-    (acumulado, produto) =>
-      acumulado + produto.quantidade,
+    (soma, produto) => soma + Number(produto.quantidade),
     0
   );
+
+  function formatarMoeda(valor) {
+    return Number(valor).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    });
+  }
 
   return (
     <main className="pagina-carrinho">
       <h1>Meu carrinho</h1>
+
+      {erro && (
+        <p className="mensagem-erro" role="alert">
+          {erro}
+        </p>
+      )}
 
       {carrinho.length === 0 ? (
         <section className="carrinho-vazio">
@@ -87,9 +143,9 @@ function Carrinho() {
           <p>
             Que tal escolher alguns produtos para sua sessão?
           </p>
-          <a href="/bomboniere" className="botao-voltar">
+          <Link to="/bomboniere" className="botao-voltar">
             Ir para a bomboniere
-          </a>
+          </Link>
         </section>
       ) : (
         <section className="carrinho-conteudo">
@@ -115,23 +171,21 @@ function Carrinho() {
 
             <section className="resumo-linha">
               <span>Subtotal:</span>
-              <strong>
-                {total.toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL"
-                })}
-              </strong>
+              <strong>{formatarMoeda(total)}</strong>
             </section>
 
             <section className="resumo-total">
               <span>Total:</span>
-              <strong>
-                {total.toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL"
-                })}
-              </strong>
+              <strong>{formatarMoeda(total)}</strong>
             </section>
+
+            <button
+              type="button"
+              className="botao-finalizar"
+              onClick={finalizarCompra}
+            >
+              Finalizar compra
+            </button>
 
             <button
               type="button"
@@ -142,7 +196,7 @@ function Carrinho() {
             </button>
 
             <p className="mensagem-checkout">
-              O checkout será implementado na próxima etapa.
+              Checkout demonstrativo: nenhuma cobrança será realizada.
             </p>
           </aside>
         </section>
@@ -152,4 +206,3 @@ function Carrinho() {
 }
 
 export default Carrinho;
-
