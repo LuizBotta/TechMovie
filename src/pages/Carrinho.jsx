@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ItemCarrinho from "../components/ItemCarrinho";
@@ -5,63 +6,76 @@ import "../styles/carrinho.css";
 
 const CHAVE_CARRINHO = "techmovie_carrinho";
 
-function lerLocalStorage(chave) {
+function lerCarrinho() {
   try {
-    const dados = JSON.parse(localStorage.getItem(chave) || "[]");
+    const dados = JSON.parse(
+      localStorage.getItem(CHAVE_CARRINHO) || "[]"
+    );
+
     return Array.isArray(dados) ? dados : [];
   } catch {
     return [];
   }
 }
 
-function Carrinho() {
-  const [carrinho, setCarrinho] = useState(() =>
-    lerLocalStorage(CHAVE_CARRINHO)
-  );
+function formatarMoeda(valor) {
+  return Number(valor).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
+}
 
+function Carrinho() {
+  const [carrinho, setCarrinho] = useState(lerCarrinho);
   const [erro, setErro] = useState("");
   const [finalizando, setFinalizando] = useState(false);
+
   const navigate = useNavigate();
 
-  function atualizarCarrinho(novoCarrinho) {
-    setCarrinho(novoCarrinho);
-
+  function atualizarCarrinho(itens) {
+    setCarrinho(itens);
     localStorage.setItem(
       CHAVE_CARRINHO,
-      JSON.stringify(novoCarrinho)
+      JSON.stringify(itens)
     );
-
     window.dispatchEvent(new Event("carrinhoAtualizado"));
   }
 
   function aumentarQuantidade(id) {
-    const novoCarrinho = carrinho.map((produto) =>
-      produto.id === id
-        ? { ...produto, quantidade: produto.quantidade + 1 }
-        : produto
+    atualizarCarrinho(
+      carrinho.map((item) =>
+        item.id === id && item.categoria !== "ingresso"
+          ? {
+              ...item,
+              quantidade: Math.min(
+                99,
+                Number(item.quantidade) + 1
+              )
+            }
+          : item
+      )
     );
-
-    atualizarCarrinho(novoCarrinho);
   }
 
   function diminuirQuantidade(id) {
-    const novoCarrinho = carrinho
-      .map((produto) =>
-        produto.id === id
-          ? { ...produto, quantidade: produto.quantidade - 1 }
-          : produto
-      )
-      .filter((produto) => produto.quantidade > 0);
-
-    atualizarCarrinho(novoCarrinho);
+    atualizarCarrinho(
+      carrinho
+        .map((item) =>
+          item.id === id && item.categoria !== "ingresso"
+            ? {
+                ...item,
+                quantidade: Number(item.quantidade) - 1
+              }
+            : item
+        )
+        .filter((item) => Number(item.quantidade) > 0)
+    );
   }
 
   function removerProduto(id) {
-    const novoCarrinho = carrinho.filter(
-      (produto) => produto.id !== id
+    atualizarCarrinho(
+      carrinho.filter((item) => item.id !== id)
     );
-
-    atualizarCarrinho(novoCarrinho);
   }
 
   function limparCarrinho() {
@@ -69,12 +83,31 @@ function Carrinho() {
   }
 
   async function finalizarCompra() {
+    if (finalizando) {
+      return;
+    }
+
     setErro("");
 
     if (carrinho.length === 0) {
-      setErro("Adicione pelo menos um produto antes de finalizar.");
+      setErro("Adicione pelo menos um item.");
       return;
     }
+
+    const produtos = carrinho
+      .filter((item) => item.categoria !== "ingresso")
+      .map((item) => ({
+        id: Number(item.id),
+        quantidade: Number(item.quantidade)
+      }));
+
+    const ingressos = carrinho
+      .filter((item) => item.categoria === "ingresso")
+      .map((item) => ({
+        sessaoId: Number(item.sessaoId),
+        poltrona: item.poltrona,
+        tipo: item.tipo
+      }));
 
     try {
       setFinalizando(true);
@@ -87,10 +120,8 @@ function Carrinho() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            produtos: carrinho.map((produto) => ({
-              id: produto.id,
-              quantidade: produto.quantidade
-            }))
+            produtos,
+            ingressos
           })
         }
       );
@@ -99,26 +130,22 @@ function Carrinho() {
 
       if (!resposta.ok || !dados.sucesso) {
         throw new Error(
-          dados.mensagem || "Não foi possível finalizar a compra."
+          dados.mensagem ||
+          "Não foi possível finalizar a compra."
         );
       }
 
-      localStorage.setItem(CHAVE_CARRINHO, "[]");
-
-      window.dispatchEvent(new Event("carrinhoAtualizado"));
-
-      setCarrinho([]);
+      atualizarCarrinho([]);
 
       navigate("/historico", {
-        state: { mensagem: "Compra realizada com sucesso!" }
+        state: {
+          mensagem: "Compra realizada com sucesso!"
+        }
       });
-
     } catch (erro) {
-      console.error("Erro ao finalizar compra:", erro);
-
       setErro(
         erro.message ||
-        "Não foi possível finalizar a compra. Tente novamente."
+        "Não foi possível finalizar a compra."
       );
     } finally {
       setFinalizando(false);
@@ -126,22 +153,16 @@ function Carrinho() {
   }
 
   const total = carrinho.reduce(
-    (soma, produto) =>
-      soma + Number(produto.preco) * Number(produto.quantidade),
+    (soma, item) =>
+      soma +
+      Number(item.preco) * Number(item.quantidade),
     0
   );
 
   const quantidadeTotal = carrinho.reduce(
-    (soma, produto) => soma + Number(produto.quantidade),
+    (soma, item) => soma + Number(item.quantidade),
     0
   );
-
-  function formatarMoeda(valor) {
-    return Number(valor).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL"
-    });
-  }
 
   return (
     <main className="pagina-carrinho">
@@ -158,8 +179,13 @@ function Carrinho() {
           <span>🛒</span>
           <h2>Seu carrinho está vazio</h2>
           <p>
-            Que tal escolher alguns produtos para sua sessão?
+            Escolha ingressos ou produtos para começar.
           </p>
+
+          <Link to="/" className="botao-voltar">
+            Ver filmes
+          </Link>
+
           <Link to="/bomboniere" className="botao-voltar">
             Ir para a bomboniere
           </Link>
@@ -167,15 +193,19 @@ function Carrinho() {
       ) : (
         <section className="carrinho-conteudo">
           <section className="lista-carrinho">
-            {carrinho.map((produto) => (
+            {carrinho.map((item) => (
               <ItemCarrinho
-                key={produto.id}
-                produto={produto}
+                key={item.id}
+                produto={item}
                 onAumentar={aumentarQuantidade}
                 onDiminuir={diminuirQuantidade}
                 onRemover={removerProduto}
               />
             ))}
+
+            <Link to="/bomboniere" className="botao-voltar">
+              Adicionar produtos da bomboniere
+            </Link>
           </section>
 
           <aside className="resumo-carrinho">
@@ -202,7 +232,9 @@ function Carrinho() {
               onClick={finalizarCompra}
               disabled={finalizando}
             >
-              {finalizando ? "Finalizando..." : "Finalizar compra"}
+              {finalizando
+                ? "Finalizando..."
+                : "Finalizar compra"}
             </button>
 
             <button
@@ -215,7 +247,8 @@ function Carrinho() {
             </button>
 
             <p className="mensagem-checkout">
-              Checkout demonstrativo: nenhuma cobrança será realizada.
+              Checkout demonstrativo: nenhuma cobrança
+              será realizada.
             </p>
           </aside>
         </section>

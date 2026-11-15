@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import "../styles/historico.css";
@@ -10,13 +11,13 @@ function formatarMoeda(valor) {
 }
 
 function formatarData(data) {
-  const dataConvertida = new Date(data.replace(" ", "T"));
+  const convertida = new Date(data.replace(" ", "T"));
 
-  if (Number.isNaN(dataConvertida.getTime())) {
+  if (Number.isNaN(convertida.getTime())) {
     return data;
   }
 
-  return dataConvertida.toLocaleString("pt-BR", {
+  return convertida.toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short"
   });
@@ -32,20 +33,24 @@ function HistoricoPedidos() {
   const mensagem = location.state?.mensagem;
 
   useEffect(() => {
-    async function buscarHistorico() {
-      try {
-        setCarregando(true);
-        setErro("");
+    const controlador = new AbortController();
 
+    async function buscarHistorico() {
+      setCarregando(true);
+      setErro("");
+
+      try {
         const resposta = await fetch(
-          "http://localhost:8000/api/pedidos.php"
+          "http://localhost:8000/api/pedidos.php",
+          { signal: controlador.signal }
         );
 
         const dados = await resposta.json();
 
         if (!resposta.ok || !dados.sucesso) {
           throw new Error(
-            dados.mensagem || "Não foi possível carregar o histórico."
+            dados.mensagem ||
+            "Não foi possível carregar o histórico."
           );
         }
 
@@ -53,24 +58,28 @@ function HistoricoPedidos() {
           Array.isArray(dados.pedidos) ? dados.pedidos : []
         );
       } catch (erro) {
-        console.error("Erro ao buscar histórico:", erro);
-
-        setErro(
-          erro.message || "Não foi possível carregar os pedidos."
-        );
+        if (erro.name !== "AbortError") {
+          setErro(
+            erro.message || "Erro ao carregar os pedidos."
+          );
+        }
       } finally {
-        setCarregando(false);
+        if (!controlador.signal.aborted) {
+          setCarregando(false);
+        }
       }
     }
 
     buscarHistorico();
+
+    return () => controlador.abort();
   }, [tentativa]);
 
   return (
     <main className="pagina-historico">
       <header className="historico-topo">
         <h1>Meus pedidos</h1>
-        <p>Acompanhe suas compras realizadas na bomboniere.</p>
+        <p>Histórico de ingressos e produtos comprados.</p>
       </header>
 
       {mensagem && (
@@ -80,7 +89,7 @@ function HistoricoPedidos() {
       )}
 
       {carregando && (
-        <p role="status">Carregando histórico de pedidos...</p>
+        <p role="status">Carregando histórico...</p>
       )}
 
       {erro && (
@@ -100,10 +109,10 @@ function HistoricoPedidos() {
         <section className="historico-vazio">
           <span>📋</span>
           <h2>Você ainda não tem pedidos</h2>
-          <p>Quando finalizar uma compra, ela aparecerá aqui.</p>
+          <p>Suas compras aparecerão aqui.</p>
 
-          <Link to="/bomboniere" className="botao-voltar">
-            Conhecer a bomboniere
+          <Link to="/" className="botao-voltar">
+            Ver filmes
           </Link>
         </section>
       )}
@@ -123,32 +132,70 @@ function HistoricoPedidos() {
                 </span>
               </header>
 
-              <section className="pedido-produtos">
-                <h3>Produtos</h3>
+              {pedido.ingressos?.length > 0 && (
+                <section className="pedido-produtos">
+                  <h3>🎟️ Ingressos</h3>
 
-                {pedido.produtos.map((produto, indice) => (
-                  <section
-                    className="pedido-produto"
-                    key={`${pedido.id}-${produto.id}-${indice}`}
-                  >
-                    <span className="pedido-emoji">
-                      {produto.emoji}
-                    </span>
+                  {pedido.ingressos.map((ingresso, indice) => (
+                    <section
+                      className="pedido-produto"
+                      key={`${pedido.id}-ingresso-${indice}`}
+                    >
+                      <span className="pedido-emoji">🎟️</span>
 
-                    <section className="pedido-produto-info">
-                      <strong>{produto.nome}</strong>
-                      <p>
-                        {produto.quantidade} x{" "}
-                        {formatarMoeda(produto.preco)}
-                      </p>
+                      <section className="pedido-produto-info">
+                        <strong>{ingresso.filme}</strong>
+
+                        <p>
+                          {ingresso.data.split("-").reverse().join("/")}
+                          {" às "}
+                          {ingresso.horario}
+                        </p>
+
+                        <p>
+                          Poltrona {ingresso.poltrona} —{" "}
+                          {ingresso.tipo === "meia"
+                            ? "Meia"
+                            : "Inteira"}
+                        </p>
+                      </section>
+
+                      <strong>
+                        {formatarMoeda(ingresso.preco)}
+                      </strong>
                     </section>
+                  ))}
+                </section>
+              )}
 
-                    <strong>
-                      {formatarMoeda(produto.subtotal)}
-                    </strong>
-                  </section>
-                ))}
-              </section>
+              {pedido.produtos?.length > 0 && (
+                <section className="pedido-produtos">
+                  <h3>🍿 Produtos da bomboniere</h3>
+
+                  {pedido.produtos.map((produto, indice) => (
+                    <section
+                      className="pedido-produto"
+                      key={`${pedido.id}-produto-${indice}`}
+                    >
+                      <span className="pedido-emoji">
+                        {produto.emoji}
+                      </span>
+
+                      <section className="pedido-produto-info">
+                        <strong>{produto.nome}</strong>
+                        <p>
+                          {produto.quantidade} x{" "}
+                          {formatarMoeda(produto.preco)}
+                        </p>
+                      </section>
+
+                      <strong>
+                        {formatarMoeda(produto.subtotal)}
+                      </strong>
+                    </section>
+                  ))}
+                </section>
+              )}
 
               <footer className="pedido-total">
                 <span>Total do pedido</span>
