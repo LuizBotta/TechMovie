@@ -15,7 +15,7 @@ function CardProduto({ produto, onAdicionar }) {
         <p>{produto.descricao}</p>
 
         <strong>
-          {produto.preco.toLocaleString("pt-BR", {
+          {Number(produto.preco).toLocaleString("pt-BR", {
             style: "currency",
             currency: "BRL"
           })}

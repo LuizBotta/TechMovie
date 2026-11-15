@@ -1,11 +1,49 @@
-
-import { useState } from "react";
-import produtos from "../data/produtos";
+import { useEffect, useState } from "react";
 import CardProduto from "../components/CardProduto";
 import "../styles/bomboniere.css";
 
 function Bomboniere() {
+  const [produtos, setProdutos] = useState([]);
   const [aviso, setAviso] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [tentativa, setTentativa] = useState(0);
+
+  useEffect(() => {
+    async function buscarProdutos() {
+      try {
+        setCarregando(true);
+        setErro("");
+
+        const resposta = await fetch(
+          "http://localhost:8000/api/produtos.php"
+        );
+
+        if (!resposta.ok) {
+          throw new Error("Não foi possível consultar os produtos.");
+        }
+
+        const dados = await resposta.json();
+
+        if (!dados.sucesso || !Array.isArray(dados.produtos)) {
+          throw new Error(
+            dados.mensagem || "A API retornou dados inválidos."
+          );
+        }
+
+        setProdutos(dados.produtos);
+      } catch (erro) {
+        console.error("Erro ao buscar produtos:", erro);
+        setErro(
+          "Não foi possível carregar os produtos. Verifique se o servidor PHP está funcionando."
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    buscarProdutos();
+  }, [tentativa]);
 
   function adicionarAoCarrinho(produto) {
     let carrinho = [];
@@ -29,7 +67,10 @@ function Bomboniere() {
     if (produtoExistente) {
       carrinho = carrinho.map((item) =>
         item.id === produto.id
-          ? { ...item, quantidade: item.quantidade + 1 }
+          ? {
+              ...item,
+              quantidade: Number(item.quantidade || 1) + 1
+            }
           : item
       );
     } else {
@@ -64,15 +105,38 @@ function Bomboniere() {
         </p>
       )}
 
-      <section className="produtos-grid">
-        {produtos.map((produto) => (
-          <CardProduto
-            key={produto.id}
-            produto={produto}
-            onAdicionar={adicionarAoCarrinho}
-          />
-        ))}
-      </section>
+      {carregando && (
+        <p role="status">Carregando produtos...</p>
+      )}
+
+      {erro && (
+        <section role="alert">
+          <p>{erro}</p>
+
+          <button
+            type="button"
+            onClick={() => setTentativa((valor) => valor + 1)}
+          >
+            Tentar novamente
+          </button>
+        </section>
+      )}
+
+      {!carregando && !erro && produtos.length === 0 && (
+        <p>Nenhum produto disponível no momento.</p>
+      )}
+
+      {!carregando && !erro && produtos.length > 0 && (
+        <section className="produtos-grid">
+          {produtos.map((produto) => (
+            <CardProduto
+              key={produto.id}
+              produto={produto}
+              onAdicionar={adicionarAoCarrinho}
+            />
+          ))}
+        </section>
+      )}
     </main>
   );
 }
