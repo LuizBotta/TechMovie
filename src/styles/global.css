@@ -73,10 +73,12 @@ a {
   margin-bottom: 30px;
 }
 
+
 .filmes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+  gap: 20px;
+  justify-content: start;
 }
 
 /* Cards dos filmes */
@@ -468,5 +470,52 @@ a {
 @media (max-width: 600px) {
   .confirmacao-ingresso {
     flex-direction: column;
+  }
+}
+
+
+/* Filtros dos filmes */
+.filtros-filmes {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0 30px;
+}
+
+.filtros-filmes input,
+.filtros-filmes select {
+  padding: 12px;
+  background-color: #222;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 15px;
+}
+
+.filtros-filmes input {
+  flex: 1;
+}
+
+.filtros-filmes input:focus,
+.filtros-filmes select:focus {
+  outline: 1px solid #e50914;
+  border-color: #e50914;
+}
+
+.nenhum-filme {
+  text-align: center;
+  padding: 30px;
+  color: #aaa;
+}
+
+/* Responsividade */
+@media (max-width: 600px) {
+  .filtros-filmes {
+    flex-direction: column;
+  }
+
+  .filtros-filmes input,
+  .filtros-filmes select {
+    width: 100%;
+    box-sizing: border-box;
   }
 }
