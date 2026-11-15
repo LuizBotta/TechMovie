@@ -1,19 +1,77 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { filmes } from "../data/filmes";
-import { sessoes } from "../data/sessoes";
 
 function Sessoes() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [filme, setFilme] = useState(null);
+  const [sessoes, setSessoes] = useState([]);
   const [dataSelecionada, setDataSelecionada] = useState("");
   const [horarioSelecionado, setHorarioSelecionado] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
 
-  const filme = filmes.find(
-    (item) => item.id === Number(id)
-  );
+  useEffect(() => {
+    const controlador = new AbortController();
+
+    async function carregarDados() {
+      setCarregando(true);
+      setErro("");
+      setFilme(null);
+      setSessoes([]);
+      setDataSelecionada("");
+      setHorarioSelecionado("");
+
+      try {
+        const [respostaFilmes, respostaSessoes] = await Promise.all([
+          fetch("http://localhost:8000/api/filmes.php", {
+            signal: controlador.signal
+          }),
+          fetch(
+            `http://localhost:8000/api/sessoes.php?filmeId=${encodeURIComponent(id)}`,
+            { signal: controlador.signal }
+          )
+        ]);
+
+        if (!respostaFilmes.ok || !respostaSessoes.ok) {
+          throw new Error("Erro ao consultar o servidor.");
+        }
+
+        const dadosFilmes = await respostaFilmes.json();
+        const dadosSessoes = await respostaSessoes.json();
+
+        if (
+          !dadosFilmes.sucesso ||
+          !Array.isArray(dadosFilmes.filmes) ||
+          !dadosSessoes.sucesso ||
+          !Array.isArray(dadosSessoes.sessoes)
+        ) {
+          throw new Error("Resposta inválida do servidor.");
+        }
+
+        const filmeEncontrado = dadosFilmes.filmes.find(
+          (item) => Number(item.id) === Number(id)
+        );
+
+        setFilme(filmeEncontrado || null);
+        setSessoes(dadosSessoes.sessoes);
+      } catch (erro) {
+        if (erro.name !== "AbortError") {
+          setErro("Não foi possível carregar as sessões.");
+        }
+      } finally {
+        if (!controlador.signal.aborted) {
+          setCarregando(false);
+        }
+      }
+    }
+
+    carregarDados();
+
+    return () => controlador.abort();
+  }, [id]);
 
   const agora = new Date();
 
@@ -22,29 +80,25 @@ function Sessoes() {
   const dia = String(agora.getDate()).padStart(2, "0");
 
   const dataHoje = `${ano}-${mes}-${dia}`;
-  const horarioAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(
-    agora.getMinutes()
-  ).padStart(2, "0")}`;
 
-  const sessoesFilme = sessoes
-    .filter((sessao) => sessao.filmeId === Number(id))
-    .map((sessao) => {
-      const horariosDisponiveis = sessao.horarios.filter(
-        (horario) =>
-          sessao.data > dataHoje ||
-          (sessao.data === dataHoje && horario > horarioAtual)
-      );
+  const horarioAtual =
+    `${String(agora.getHours()).padStart(2, "0")}:` +
+    `${String(agora.getMinutes()).padStart(2, "0")}`;
 
-      return {
-        ...sessao,
-        horarios: horariosDisponiveis
-      };
-    })
-    .filter((sessao) => sessao.horarios.length > 0);
+  const sessoesDisponiveis = sessoes.filter((sessao) => {
+    return (
+      sessao.data > dataHoje ||
+      (sessao.data === dataHoje && sessao.horario > horarioAtual)
+    );
+  });
 
-  const sessaoAtual = sessoesFilme.find(
-    (sessao) => sessao.data === dataSelecionada
-  );
+  const datasDisponiveis = [
+    ...new Set(sessoesDisponiveis.map((sessao) => sessao.data))
+  ];
+
+  const horariosDisponiveis = sessoesDisponiveis
+    .filter((sessao) => sessao.data === dataSelecionada)
+    .map((sessao) => sessao.horario);
 
   function selecionarData(data) {
     setDataSelecionada(data);
@@ -52,11 +106,10 @@ function Sessoes() {
   }
 
   function continuar() {
-    if (!sessaoAtual) {
-      return;
-    }
-
-    if (!sessaoAtual.horarios.includes(horarioSelecionado)) {
+    if (
+      !dataSelecionada ||
+      !horariosDisponiveis.includes(horarioSelecionado)
+    ) {
       return;
     }
 
@@ -66,6 +119,22 @@ function Sessoes() {
     });
 
     navigate(`/assentos/${id}?${parametros.toString()}`);
+  }
+
+  if (carregando) {
+    return (
+      <main className="pagina-sessoes">
+        <p>Carregando sessões...</p>
+      </main>
+    );
+  }
+
+  if (erro) {
+    return (
+      <main className="pagina-sessoes">
+        <p role="alert">{erro}</p>
+      </main>
+    );
   }
 
   if (!filme) {
@@ -90,7 +159,7 @@ function Sessoes() {
         </section>
       </article>
 
-      {sessoesFilme.length === 0 ? (
+      {datasDisponiveis.length === 0 ? (
         <p className="mensagem">
           Não há sessões disponíveis para este filme.
         </p>
@@ -100,29 +169,29 @@ function Sessoes() {
             <h2>Selecione a data</h2>
 
             <section className="opcoes">
-              {sessoesFilme.map((sessao) => (
+              {datasDisponiveis.map((data) => (
                 <button
-                  key={sessao.id}
+                  key={data}
                   type="button"
                   className={
-                    dataSelecionada === sessao.data
+                    dataSelecionada === data
                       ? "opcao selecionada"
                       : "opcao"
                   }
-                  onClick={() => selecionarData(sessao.data)}
+                  onClick={() => selecionarData(data)}
                 >
-                  {sessao.data.split("-").reverse().join("/")}
+                  {data.split("-").reverse().join("/")}
                 </button>
               ))}
             </section>
           </section>
 
-          {sessaoAtual && (
+          {dataSelecionada && (
             <section aria-label="Horários disponíveis">
               <h2>Selecione o horário</h2>
 
               <section className="opcoes">
-                {sessaoAtual.horarios.map((horario) => (
+                {horariosDisponiveis.map((horario) => (
                   <button
                     key={horario}
                     type="button"
@@ -144,8 +213,8 @@ function Sessoes() {
             type="button"
             className="botao"
             disabled={
-              !sessaoAtual ||
-              !sessaoAtual.horarios.includes(horarioSelecionado)
+              !dataSelecionada ||
+              !horariosDisponiveis.includes(horarioSelecionado)
             }
             onClick={continuar}
           >

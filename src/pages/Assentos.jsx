@@ -6,67 +6,47 @@ import {
   useNavigate,
   Link
 } from "react-router-dom";
-import { filmes } from "../data/filmes";
-import { sessoes } from "../data/sessoes";
+
+const API = "http://localhost:8000/api";
 
 const fileiras = ["A", "B", "C", "D", "E"];
 const numeros = [1, 2, 3, 4, 5, 6, 7, 8];
-const ocupados = ["A3", "B5", "C2", "D7", "E4"];
 
 const poltronasValidas = fileiras.flatMap((fileira) =>
   numeros.map((numero) => `${fileira}${numero}`)
 );
 
-function sessaoDisponivel(id, data, horario) {
+function sessaoFutura(data, horario) {
   const agora = new Date();
-
   const ano = agora.getFullYear();
   const mes = String(agora.getMonth() + 1).padStart(2, "0");
   const dia = String(agora.getDate()).padStart(2, "0");
 
-  const dataHoje = `${ano}-${mes}-${dia}`;
-
-  const horarioAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(
+  const hoje = `${ano}-${mes}-${dia}`;
+  const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(
     agora.getMinutes()
   ).padStart(2, "0")}`;
 
-  const existeSessao = sessoes.some(
-    (sessao) =>
-      sessao.filmeId === Number(id) &&
-      sessao.data === data &&
-      sessao.horarios.includes(horario)
-  );
-
-  const horarioValido =
-    data > dataHoje ||
-    (data === dataHoje && horario > horarioAtual);
-
-  return existeSessao && horarioValido;
+  return data > hoje || (data === hoje && horario > horaAtual);
 }
 
-function buscarReserva(id, data, horario) {
+function buscarReservaSalva(sessaoId) {
   try {
-    const dados = localStorage.getItem("techmovie_reserva");
-
-    if (!dados) {
-      return null;
-    }
-
-    const reserva = JSON.parse(dados);
+    const dados = JSON.parse(
+      localStorage.getItem("techmovie_reserva")
+    );
 
     if (
-      Number(reserva.filmeId) === Number(id) &&
-      reserva.data === data &&
-      reserva.horario === horario &&
-      Array.isArray(reserva.ingressos)
+      Number(dados?.sessaoId) === Number(sessaoId) &&
+      Array.isArray(dados.ingressos)
     ) {
-      return reserva;
+      return dados.ingressos;
     }
-
-    return null;
   } catch {
-    return null;
+    return [];
   }
+
+  return [];
 }
 
 function Assentos() {
@@ -74,59 +54,141 @@ function Assentos() {
   const [parametros] = useSearchParams();
   const navigate = useNavigate();
 
-  const filme = filmes.find((item) => item.id === Number(id));
-
   const data = parametros.get("data");
   const horario = parametros.get("horario");
 
-  const valida = sessaoDisponivel(id, data, horario);
-
+  const [filme, setFilme] = useState(null);
+  const [sessao, setSessao] = useState(null);
+  const [ocupados, setOcupados] = useState([]);
   const [selecionados, setSelecionados] = useState([]);
   const [tipos, setTipos] = useState({});
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
 
   useEffect(() => {
-    if (!valida) {
+    const controlador = new AbortController();
+
+    async function carregarDados() {
+      setCarregando(true);
+      setErro("");
+      setFilme(null);
+      setSessao(null);
+      setOcupados([]);
       setSelecionados([]);
       setTipos({});
-      return;
+
+      try {
+        const [respostaFilmes, respostaSessoes] = await Promise.all([
+          fetch(`${API}/filmes.php`, {
+            signal: controlador.signal
+          }),
+          fetch(
+            `${API}/sessoes.php?filmeId=${encodeURIComponent(id)}`,
+            { signal: controlador.signal }
+          )
+        ]);
+
+        if (!respostaFilmes.ok || !respostaSessoes.ok) {
+          throw new Error("Erro ao consultar o servidor.");
+        }
+
+        const dadosFilmes = await respostaFilmes.json();
+        const dadosSessoes = await respostaSessoes.json();
+
+        if (
+          !dadosFilmes.sucesso ||
+          !Array.isArray(dadosFilmes.filmes) ||
+          !dadosSessoes.sucesso ||
+          !Array.isArray(dadosSessoes.sessoes)
+        ) {
+          throw new Error("Resposta inválida do servidor.");
+        }
+
+        const filmeEncontrado = dadosFilmes.filmes.find(
+          (item) => Number(item.id) === Number(id)
+        );
+
+        const sessaoEncontrada = dadosSessoes.sessoes.find(
+          (item) =>
+            item.data === data &&
+            item.horario === horario
+        );
+
+        setFilme(filmeEncontrado || null);
+
+        if (
+          !filmeEncontrado ||
+          !sessaoEncontrada ||
+          !sessaoFutura(data, horario)
+        ) {
+          return;
+        }
+
+        const respostaAssentos = await fetch(
+          `${API}/assentos.php?sessaoId=${sessaoEncontrada.id}`,
+          { signal: controlador.signal }
+        );
+
+        if (!respostaAssentos.ok) {
+          throw new Error("Erro ao consultar as poltronas.");
+        }
+
+        const dadosAssentos = await respostaAssentos.json();
+
+        if (
+          !dadosAssentos.sucesso ||
+          !Array.isArray(dadosAssentos.ocupados)
+        ) {
+          throw new Error("Resposta inválida das poltronas.");
+        }
+
+        const ocupadas = dadosAssentos.ocupados;
+        setSessao(sessaoEncontrada);
+        setOcupados(ocupadas);
+
+        const salvos = buscarReservaSalva(sessaoEncontrada.id)
+          .filter(
+            (ingresso) =>
+              poltronasValidas.includes(ingresso.poltrona) &&
+              !ocupadas.includes(ingresso.poltrona)
+          );
+
+        const poltronasSalvas = [
+          ...new Set(salvos.map((ingresso) => ingresso.poltrona))
+        ];
+
+        const tiposSalvos = {};
+
+        salvos.forEach((ingresso) => {
+          tiposSalvos[ingresso.poltrona] =
+            ingresso.tipo === "meia" ? "meia" : "inteira";
+        });
+
+        setSelecionados(poltronasSalvas);
+        setTipos(tiposSalvos);
+      } catch (erro) {
+        if (erro.name !== "AbortError") {
+          setErro("Não foi possível carregar as poltronas.");
+        }
+      } finally {
+        if (!controlador.signal.aborted) {
+          setCarregando(false);
+        }
+      }
     }
 
-    const reserva = buscarReserva(id, data, horario);
+    carregarDados();
 
-    if (!reserva) {
-      setSelecionados([]);
-      setTipos({});
-      return;
-    }
-
-    const ingressos = reserva.ingressos.filter(
-      (ingresso) =>
-        poltronasValidas.includes(ingresso.poltrona) &&
-        !ocupados.includes(ingresso.poltrona)
-    );
-
-    const poltronasSalvas = [
-      ...new Set(ingressos.map((ingresso) => ingresso.poltrona))
-    ];
-
-    setSelecionados(poltronasSalvas);
-
-    const tiposSalvos = {};
-
-    ingressos.forEach((ingresso) => {
-      tiposSalvos[ingresso.poltrona] =
-        ingresso.tipo === "meia" ? "meia" : "inteira";
-    });
-
-    setTipos(tiposSalvos);
-  }, [id, data, horario, valida]);
+    return () => controlador.abort();
+  }, [id, data, horario]);
 
   function selecionarAssento(assento) {
-    if (!valida || !poltronasValidas.includes(assento)) {
-      return;
-    }
-
-    if (ocupados.includes(assento)) {
+    if (
+      !sessao ||
+      !poltronasValidas.includes(assento) ||
+      ocupados.includes(assento)
+    ) {
       return;
     }
 
@@ -142,11 +204,7 @@ function Assentos() {
       });
     } else {
       setSelecionados([...selecionados, assento]);
-
-      setTipos({
-        ...tipos,
-        [assento]: "inteira"
-      });
+      setTipos({ ...tipos, [assento]: "inteira" });
     }
   }
 
@@ -158,56 +216,112 @@ function Assentos() {
       return;
     }
 
-    setTipos({
-      ...tipos,
-      [assento]: tipo
-    });
+    setTipos({ ...tipos, [assento]: tipo });
   }
 
-  const total = selecionados.reduce((soma, assento) => {
-    return soma + (tipos[assento] === "meia" ? 15 : 30);
-  }, 0);
+  const total = selecionados.reduce(
+    (soma, assento) =>
+      soma + (tipos[assento] === "meia" ? 15 : 30),
+    0
+  );
 
-  function confirmarAssentos() {
+  async function confirmarAssentos() {
     if (
+      confirmando ||
       !filme ||
-      !sessaoDisponivel(id, data, horario) ||
+      !sessao ||
+      !sessaoFutura(data, horario) ||
       selecionados.length === 0
     ) {
       return;
     }
 
-    const ingressos = selecionados.map((assento) => {
-      const preco = tipos[assento] === "meia" ? 15 : 30;
+    setConfirmando(true);
+    setErro("");
 
-      return {
-        id: `ingresso-${filme.id}-${data}-${horario}-${assento}`,
-        categoria: "ingresso",
-        nome: `Ingresso - ${filme.titulo}`,
-        poltrona: assento,
-        tipo: tipos[assento] || "inteira",
-        quantidade: 1,
-        preco: preco,
-        precoUnitario: preco,
-        subtotal: preco
+    try {
+      const resposta = await fetch(
+        `${API}/assentos.php?sessaoId=${sessao.id}`
+      );
+
+      if (!resposta.ok) {
+        throw new Error("Erro ao verificar as poltronas.");
+      }
+
+      const dados = await resposta.json();
+
+      if (!dados.sucesso || !Array.isArray(dados.ocupados)) {
+        throw new Error("Resposta inválida do servidor.");
+      }
+
+      const indisponiveis = selecionados.filter(
+        (assento) => dados.ocupados.includes(assento)
+      );
+
+      if (indisponiveis.length > 0) {
+        setOcupados(dados.ocupados);
+
+        setSelecionados((anteriores) =>
+          anteriores.filter(
+            (assento) => !indisponiveis.includes(assento)
+          )
+        );
+
+        throw new Error(
+          `As poltronas ${indisponiveis.join(", ")} foram ocupadas.`
+        );
+      }
+
+      const ingressos = selecionados.map((assento) => {
+        const tipo = tipos[assento] === "meia"
+          ? "meia"
+          : "inteira";
+
+        const preco = tipo === "meia" ? 15 : 30;
+
+        return {
+          id: `ingresso-${sessao.id}-${assento}`,
+          categoria: "ingresso",
+          nome: `Ingresso - ${filme.titulo}`,
+          sessaoId: sessao.id,
+          poltrona: assento,
+          tipo,
+          quantidade: 1,
+          preco,
+          precoUnitario: preco,
+          subtotal: preco
+        };
+      });
+
+      const reserva = {
+        filmeId: filme.id,
+        filme: filme.titulo,
+        sessaoId: sessao.id,
+        data,
+        horario,
+        ingressos,
+        total
       };
-    });
 
-    const reserva = {
-      filmeId: filme.id,
-      filme: filme.titulo,
-      data: data,
-      horario: horario,
-      ingressos: ingressos,
-      total: total
-    };
+      localStorage.setItem(
+        "techmovie_reserva",
+        JSON.stringify(reserva)
+      );
 
-    localStorage.setItem(
-      "techmovie_reserva",
-      JSON.stringify(reserva)
+      navigate("/confirmacao");
+    } catch (erro) {
+      setErro(erro.message);
+    } finally {
+      setConfirmando(false);
+    }
+  }
+
+  if (carregando) {
+    return (
+      <main className="pagina-assentos">
+        <p>Carregando poltronas...</p>
+      </main>
     );
-
-    navigate("/confirmacao");
   }
 
   if (!filme) {
@@ -221,15 +335,11 @@ function Assentos() {
     );
   }
 
-  if (!valida) {
+  if (!sessao) {
     return (
       <main className="pagina-assentos">
         <h2>Sessão não disponível.</h2>
-
-        <p>
-          A data ou o horário selecionado não está disponível.
-        </p>
-
+        {erro && <p role="alert">{erro}</p>}
         <Link to={`/sessoes/${id}`} className="botao">
           Escolher outra sessão
         </Link>
@@ -244,6 +354,8 @@ function Assentos() {
       <p>
         {filme.titulo} — {data.split("-").reverse().join("/")} às {horario}
       </p>
+
+      {erro && <p role="alert">{erro}</p>}
 
       <section className="sala-cinema">
         <p className="tela-cinema">TELA DO CINEMA</p>
@@ -307,7 +419,6 @@ function Assentos() {
                 <option value="inteira">
                   Inteira — R$ 30,00
                 </option>
-
                 <option value="meia">
                   Meia — R$ 15,00
                 </option>
@@ -322,9 +433,12 @@ function Assentos() {
           <button
             type="button"
             className="botao"
+            disabled={confirmando}
             onClick={confirmarAssentos}
           >
-            Confirmar assentos
+            {confirmando
+              ? "Verificando..."
+              : "Confirmar assentos"}
           </button>
         </section>
       )}
