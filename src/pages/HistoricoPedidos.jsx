@@ -1,19 +1,6 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import "../styles/historico.css";
-
-const CHAVE_HISTORICO = "techmovie_historico";
-
-function carregarHistorico() {
-  try {
-    const dados = JSON.parse(
-      localStorage.getItem(CHAVE_HISTORICO) || "[]"
-    );
-
-    return Array.isArray(dados) ? dados : [];
-  } catch {
-    return [];
-  }
-}
 
 function formatarMoeda(valor) {
   return Number(valor).toLocaleString("pt-BR", {
@@ -23,14 +10,61 @@ function formatarMoeda(valor) {
 }
 
 function formatarData(data) {
-  return new Date(data).toLocaleString("pt-BR", {
+  const dataConvertida = new Date(data.replace(" ", "T"));
+
+  if (Number.isNaN(dataConvertida.getTime())) {
+    return data;
+  }
+
+  return dataConvertida.toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short"
   });
 }
 
 function HistoricoPedidos() {
-  const pedidos = carregarHistorico();
+  const [pedidos, setPedidos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [tentativa, setTentativa] = useState(0);
+
+  const location = useLocation();
+  const mensagem = location.state?.mensagem;
+
+  useEffect(() => {
+    async function buscarHistorico() {
+      try {
+        setCarregando(true);
+        setErro("");
+
+        const resposta = await fetch(
+          "http://localhost:8000/api/pedidos.php"
+        );
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok || !dados.sucesso) {
+          throw new Error(
+            dados.mensagem || "Não foi possível carregar o histórico."
+          );
+        }
+
+        setPedidos(
+          Array.isArray(dados.pedidos) ? dados.pedidos : []
+        );
+      } catch (erro) {
+        console.error("Erro ao buscar histórico:", erro);
+
+        setErro(
+          erro.message || "Não foi possível carregar os pedidos."
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    buscarHistorico();
+  }, [tentativa]);
 
   return (
     <main className="pagina-historico">
@@ -39,7 +73,30 @@ function HistoricoPedidos() {
         <p>Acompanhe suas compras realizadas na bomboniere.</p>
       </header>
 
-      {pedidos.length === 0 ? (
+      {mensagem && (
+        <p className="mensagem-sucesso" role="status">
+          {mensagem}
+        </p>
+      )}
+
+      {carregando && (
+        <p role="status">Carregando histórico de pedidos...</p>
+      )}
+
+      {erro && (
+        <section role="alert">
+          <p>{erro}</p>
+
+          <button
+            type="button"
+            onClick={() => setTentativa((valor) => valor + 1)}
+          >
+            Tentar novamente
+          </button>
+        </section>
+      )}
+
+      {!carregando && !erro && pedidos.length === 0 && (
         <section className="historico-vazio">
           <span>📋</span>
           <h2>Você ainda não tem pedidos</h2>
@@ -49,7 +106,9 @@ function HistoricoPedidos() {
             Conhecer a bomboniere
           </Link>
         </section>
-      ) : (
+      )}
+
+      {!carregando && !erro && pedidos.length > 0 && (
         <section className="lista-pedidos">
           {pedidos.map((pedido) => (
             <article className="pedido-card" key={pedido.id}>
@@ -79,14 +138,13 @@ function HistoricoPedidos() {
                     <section className="pedido-produto-info">
                       <strong>{produto.nome}</strong>
                       <p>
-                        {produto.quantidade} x {formatarMoeda(produto.preco)}
+                        {produto.quantidade} x{" "}
+                        {formatarMoeda(produto.preco)}
                       </p>
                     </section>
 
                     <strong>
-                      {formatarMoeda(
-                        produto.preco * produto.quantidade
-                      )}
+                      {formatarMoeda(produto.subtotal)}
                     </strong>
                   </section>
                 ))}

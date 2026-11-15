@@ -4,7 +4,6 @@ import ItemCarrinho from "../components/ItemCarrinho";
 import "../styles/carrinho.css";
 
 const CHAVE_CARRINHO = "techmovie_carrinho";
-const CHAVE_HISTORICO = "techmovie_historico";
 
 function lerLocalStorage(chave) {
   try {
@@ -19,7 +18,9 @@ function Carrinho() {
   const [carrinho, setCarrinho] = useState(() =>
     lerLocalStorage(CHAVE_CARRINHO)
   );
+
   const [erro, setErro] = useState("");
+  const [finalizando, setFinalizando] = useState(false);
   const navigate = useNavigate();
 
   function atualizarCarrinho(novoCarrinho) {
@@ -67,7 +68,7 @@ function Carrinho() {
     atualizarCarrinho([]);
   }
 
-  function finalizarCompra() {
+  async function finalizarCompra() {
     setErro("");
 
     if (carrinho.length === 0) {
@@ -75,36 +76,52 @@ function Carrinho() {
       return;
     }
 
-    const total = carrinho.reduce(
-      (soma, produto) =>
-        soma + Number(produto.preco) * Number(produto.quantidade),
-      0
-    );
-
-    const pedido = {
-      id: `PED-${Date.now()}`,
-      data: new Date().toISOString(),
-      produtos: carrinho.map((produto) => ({ ...produto })),
-      total: Number(total.toFixed(2)),
-      status: "Concluído"
-    };
-
-    const historico = lerLocalStorage(CHAVE_HISTORICO);
-
     try {
-      localStorage.setItem(
-        CHAVE_HISTORICO,
-        JSON.stringify([pedido, ...historico])
+      setFinalizando(true);
+
+      const resposta = await fetch(
+        "http://localhost:8000/api/pedidos.php",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            produtos: carrinho.map((produto) => ({
+              id: produto.id,
+              quantidade: produto.quantidade
+            }))
+          })
+        }
       );
+
+      const dados = await resposta.json();
+
+      if (!resposta.ok || !dados.sucesso) {
+        throw new Error(
+          dados.mensagem || "Não foi possível finalizar a compra."
+        );
+      }
 
       localStorage.setItem(CHAVE_CARRINHO, "[]");
 
       window.dispatchEvent(new Event("carrinhoAtualizado"));
 
       setCarrinho([]);
-      navigate("/historico");
-    } catch {
-      setErro("Não foi possível salvar o pedido. Tente novamente.");
+
+      navigate("/historico", {
+        state: { mensagem: "Compra realizada com sucesso!" }
+      });
+
+    } catch (erro) {
+      console.error("Erro ao finalizar compra:", erro);
+
+      setErro(
+        erro.message ||
+        "Não foi possível finalizar a compra. Tente novamente."
+      );
+    } finally {
+      setFinalizando(false);
     }
   }
 
@@ -183,14 +200,16 @@ function Carrinho() {
               type="button"
               className="botao-finalizar"
               onClick={finalizarCompra}
+              disabled={finalizando}
             >
-              Finalizar compra
+              {finalizando ? "Finalizando..." : "Finalizar compra"}
             </button>
 
             <button
               type="button"
               className="botao-limpar"
               onClick={limparCarrinho}
+              disabled={finalizando}
             >
               Limpar carrinho
             </button>
